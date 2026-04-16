@@ -1,0 +1,63 @@
+version: '3.7'
+services:
+  postgres:
+    image: postgres:13
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    ports:
+      - "5436:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 5s
+      retries: 5
+      start_period: 5s
+
+  airflow-webserver:
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      AIRFLOW__CORE__LOAD_EXAMPLES: "False"
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: >-
+        postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
+      AIRFLOW__WEBSERVER__SECRET_KEY: "mi_clave_super_secreta_123"
+      AIRFLOW_CONN_FS_DEFAULT: 'fs_default@/?path=%2F'
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - C:/Users/Esteban/Documents/Data_analysis/Project/datalake_bronze:/opt/airflow/datalake_bronze
+      - C:/Users/Esteban/Documents/Data_analysis/Project/datalake_silver:/opt/airflow/datalake_silver
+    entrypoint: >
+      bash -c "airflow db upgrade &&
+      airflow users create --username admin --firstname Air --lastname Flow --role Admin --email admin@example.com --password admin || true &&
+      airflow webserver"
+
+  airflow-scheduler:
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      AIRFLOW__CORE__LOAD_EXAMPLES: "False"
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: >-
+        postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
+      AIRFLOW__WEBSERVER__SECRET_KEY: "mi_clave_super_secreta_123"
+      AIRFLOW_CONN_FS_DEFAULT: 'fs_default@/?path=%2F'
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - C:/Users/Esteban/Documents/Data_analysis/Project/datalake_bronze:/opt/airflow/datalake_bronze
+      - C:/Users/Esteban/Documents/Data_analysis/Project/datalake_silver:/opt/airflow/datalake_silver
+    entrypoint: >
+      bash -c "airflow db upgrade &&
+      airflow scheduler"
+
+volumes:
+  pgdata:
