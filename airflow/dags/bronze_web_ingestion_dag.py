@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from collections import defaultdict
 from airflow.decorators import dag, task
 
-# Configuración de rutas (Asegúrate de que coincida con tu volumen de Docker)
+
 BASE_URL = "https://www.football-espana.net"
 TARGET_URL = f"{BASE_URL}/category/la-liga/real-madrid"
 BRONZE_PATH = "/opt/airflow/datalake_bronze" 
@@ -48,7 +48,7 @@ def football_universal_dag():
             return []
 
     @task()
-    def extract_full_article_data(url): # <-- Nombre corregido
+    def extract_full_article_data(url): 
         headers = {"User-Agent": "Mozilla/5.0"}
         try:
             response = requests.get(url, headers=headers, timeout=10)
@@ -79,7 +79,7 @@ def football_universal_dag():
                 value = meta.get('content')
                 if key and value:
                     metas[key] = value
-            raw_data['all_meta'] = str(metas) # Convertimos a string para que el CSV no sufra
+            raw_data['all_meta'] = str(metas) 
 
             # 5. Lógica de Autor y Fecha
             author, date = None, None
@@ -122,7 +122,7 @@ def football_universal_dag():
         with open(full_path, "w", encoding="utf-8") as f:
             json.dump(data_list, f, ensure_ascii=False, indent=4)
 
-        print(f"✅ JSON guardado en: {full_path}")
+        print(f"JSON guardado en: {full_path}")
         return full_path
     
     @task()
@@ -137,5 +137,5 @@ def football_universal_dag():
 
     save_to_bronze_json(collected)
 
-# Instanciar el DAG
+
 dag_instance = football_universal_dag()
