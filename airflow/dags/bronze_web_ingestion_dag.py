@@ -124,11 +124,18 @@ def football_universal_dag():
 
         print(f"✅ JSON guardado en: {full_path}")
         return full_path
+    
+    @task()
+    def collect_results(results):
+        return list(results)
     # Flujo de ejecución
     links_list = get_news_links()
 
     articles_results = extract_full_article_data.expand(url=links_list)
-    save_to_bronze_json(articles_results)
+
+    collected = collect_results(articles_results)
+
+    save_to_bronze_json(collected)
 
 # Instanciar el DAG
 dag_instance = football_universal_dag()
