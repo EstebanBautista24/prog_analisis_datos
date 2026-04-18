@@ -162,8 +162,8 @@ def football_silver_dag():
         df_clean['published_at'] = df_clean['published_at'].astype(str)
         df_clean['author']       = df_clean['author'].astype(str)
 
-        print(f"✅ Limpieza completada: {len(df_clean)} artículos")
-        print(f"   Artículos sin cuerpo: {df_clean['body_text_missing'].sum()}")
+        print(f" Limpieza completada: {len(df_clean)} artículos")
+        print(f" Artículos sin cuerpo: {df_clean['body_text_missing'].sum()}")
 
         return df_clean.to_json(orient='records')
 
@@ -214,8 +214,8 @@ def football_silver_dag():
 
         conn.commit()
 
-        print(f"✅ Filas procesadas: {len(df)}")
-        print(f"✅ Insertadas (sin duplicados): {inserted}")
+        print(f"Filas procesadas: {len(df)}")
+        print(f"Insertadas (sin duplicados): {inserted}")
 
         return "OK"
     # ── Flujo ─────────────────────────────────────────────────
