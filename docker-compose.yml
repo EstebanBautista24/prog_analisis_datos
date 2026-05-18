@@ -15,6 +15,17 @@ services:
       interval: 5s
       retries: 5
       start_period: 5s
+  postgres-data:
+      image: postgres:13
+      environment:
+        POSTGRES_USER: datauser
+        POSTGRES_PASSWORD: datapass
+        POSTGRES_DB: realmadrid_db
+      ports:
+        - "5437:5432"
+      volumes:
+        - pgdata_silver:/var/lib/postgresql/data
+        - ./postgres-init:/docker-entrypoint-initdb.d
 
   airflow-webserver:
     build: .
@@ -51,6 +62,7 @@ services:
         postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
       AIRFLOW__WEBSERVER__SECRET_KEY: "mi_clave_super_secreta_123"
       AIRFLOW_CONN_FS_DEFAULT: 'fs_default@/?path=%2F'
+      AIRFLOW_CONN_POSTGRES_REALMADRID: 'postgresql://datauser:datapass@postgres-data:5432/realmadrid_db'
     volumes:
       - ./airflow/dags:/opt/airflow/dags
       - C:/Users/Esteban/Documents/Data_analysis/Project/datalake_bronze:/opt/airflow/datalake_bronze
@@ -61,3 +73,4 @@ services:
 
 volumes:
   pgdata:
+  pgdata_silver: 

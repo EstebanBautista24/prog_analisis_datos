@@ -9,3 +9,4 @@ pyarrow
 fastparquet
 nltk
 sympy
+spacy==3.5.4
