@@ -9,6 +9,10 @@ CREATE TABLE IF NOT EXISTS articles_scraping (
     body_clean      TEXT,
     title_clean     TEXT,
     body_text_missing BOOLEAN,
+    score           INTEGER,
+    num_comments    INTEGER,
+    subreddit       TEXT,
+    selftext        TEXT,
     bronze_source   TEXT,
     silver_ingested_at TIMESTAMPTZ DEFAULT NOW()
 );
