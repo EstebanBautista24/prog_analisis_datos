@@ -48,6 +48,7 @@ services:
     entrypoint: >
       bash -c "airflow db upgrade &&
       airflow users create --username admin --firstname Air --lastname Flow --role Admin --email admin@example.com --password admin || true &&
+      rm -f /opt/airflow/airflow-webserver.pid &&
       airflow webserver"
 
   airflow-scheduler:
