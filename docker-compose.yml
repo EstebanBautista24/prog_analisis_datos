@@ -39,12 +39,14 @@ services:
         postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
       AIRFLOW__WEBSERVER__SECRET_KEY: "mi_clave_super_secreta_123"
       AIRFLOW_CONN_FS_DEFAULT: 'fs_default@/?path=%2F'
+      AIRFLOW_CONN_POSTGRES_REALMADRID: 'postgresql://datauser:datapass@postgres-data:5432/realmadrid_db'
     ports:
       - "8080:8080"
     volumes:
       - ./airflow/dags:/opt/airflow/dags
       - C:/Users/Esteban/Documents/Data_analysis/Project/datalake_bronze:/opt/airflow/datalake_bronze
       - C:/Users/Esteban/Documents/Data_analysis/Project/datalake_silver:/opt/airflow/datalake_silver
+      - C:/Users/Esteban/Documents/Data_analysis/Project/datalake_gold:/opt/airflow/datalake_gold
     entrypoint: >
       bash -c "airflow db upgrade &&
       airflow users create --username admin --firstname Air --lastname Flow --role Admin --email admin@example.com --password admin || true &&
@@ -68,6 +70,7 @@ services:
       - ./airflow/dags:/opt/airflow/dags
       - C:/Users/Esteban/Documents/Data_analysis/Project/datalake_bronze:/opt/airflow/datalake_bronze
       - C:/Users/Esteban/Documents/Data_analysis/Project/datalake_silver:/opt/airflow/datalake_silver
+      - C:/Users/Esteban/Documents/Data_analysis/Project/datalake_gold:/opt/airflow/datalake_gold
     entrypoint: >
       bash -c "airflow db upgrade &&
       airflow scheduler"

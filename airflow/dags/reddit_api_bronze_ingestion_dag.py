@@ -33,6 +33,8 @@ def reddit_api_bronze_dag():
 
     @task()
     def fetch_reddit_posts():
+        from langdetect import detect, LangDetectException
+        
         headers = {
             "User-Agent": "python:sentiment.analysis:v1.0 (by /u/test)",
             "Accept": "application/json",
@@ -56,9 +58,26 @@ def reddit_api_bronze_dag():
 
             records = []
             retrieved_at = datetime.utcnow().isoformat()
+            skipped_lang = 0
 
             for post in payload.get("data", {}).get("children", []):
                 info = post.get("data", {})
+
+                # ── Filtro de idioma ──────────────────────────────────────────────
+                title = info.get("title", "") or ""
+                selftext = info.get("selftext", "") or ""
+                text_to_check = f"{title} {selftext}".strip()
+
+                try:
+                    lang = detect(text_to_check) if text_to_check else "unknown"
+                except LangDetectException:
+                    lang = "unknown"
+
+                if lang != "en":
+                    skipped_lang += 1
+                    print(f"⏭️  Ignorado (idioma={lang}): {title[:60]}")
+                    continue
+
                 permalink = info.get("permalink")
                 url = f"https://www.reddit.com{permalink}" if permalink else info.get("url")
 
@@ -67,23 +86,27 @@ def reddit_api_bronze_dag():
                         "api_query": REDDIT_QUERY,
                         "url": url,
                         "permalink": permalink,
-                        "title": info.get("title"),
-                        "selftext": info.get("selftext"),
+                        "title": title,
+                        "selftext": selftext,
                         "author": info.get("author"),
                         "score": info.get("score"),
                         "num_comments": info.get("num_comments"),
                         "created_utc": info.get("created_utc"),
                         "subreddit": info.get("subreddit"),
                         "retrieved_at": retrieved_at,
+                        "lang": lang,
                     }
                 )
+
+            print(f"✅ Posts en inglés: {len(records)}")
+            print(f"⏭️  Posts ignorados por idioma: {skipped_lang}")
 
             return records
 
         except Exception as exc:
             print(f"Error obteniendo datos de Reddit: {exc}")
             return []
-
+    
     @task()
     def save_to_bronze_json(records):
         if not records:

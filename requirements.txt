@@ -10,3 +10,16 @@ fastparquet
 nltk
 sympy
 spacy==3.5.4
+langdetect
+# NLP
+nltk
+spacy
+vaderSentiment
+certifi
+
+# PySpark
+pyspark
+
+# Data
+pandas
+pyarrow
