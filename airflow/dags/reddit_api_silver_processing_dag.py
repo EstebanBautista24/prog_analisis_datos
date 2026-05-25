@@ -359,7 +359,8 @@ def reddit_api_silver_dag():
         run_ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
         parquet_filename = f"reddit_api_realmadrid_{run_ts}.parquet"
         parquet_path = os.path.join(SILVER_PATH, parquet_filename)
-
+        df["score"]        = df["score"].astype(float)
+        df["num_comments"] = df["num_comments"].astype(float)
         df.to_parquet(parquet_path, index=False, engine="pyarrow")
 
         print(f"💾 Parquet guardado: {parquet_path}")

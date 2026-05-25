@@ -1,0 +1,5 @@
+Total registros: 17
+Duplicados eliminados: 0
+Posts sin texto: 7
+Score mediana: 5.00
+num_comments mediana: 7.00

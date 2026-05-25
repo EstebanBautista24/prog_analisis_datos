@@ -1,0 +1,9 @@
+Total registros: 20
+Duplicados eliminados: 0
+Outliers detectados: 0
+Porcentaje outliers: 0.00%
+Q1: 2.00
+Q3: 3.00
+IQR: 1.00
+Límite inferior: 0.50
+Límite superior: 4.50

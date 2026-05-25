@@ -31,22 +31,44 @@ def football_universal_dag():
     @task()
     def get_news_links():
         headers = {"User-Agent": "Mozilla/5.0"}
-        try:
-            response = requests.get(TARGET_URL, headers=headers, timeout=10)
-            soup = BeautifulSoup(response.text, "html.parser")
-            posts = soup.find_all("div", class_="post-container")
-            
-            links = []
-            for post in posts:
-                link_tag = post.find("a", href=True)
-                if link_tag:
-                    href = link_tag.get("href")
-                    links.append(BASE_URL + href if href.startswith("/") else href)
-            return links
-        except Exception as e:
-            print(f"Error obteniendo links: {e}")
-            return []
+        links = []
+        max_pages = 5  # trae las últimas 5 páginas de artículos
 
+        for page in range(1, max_pages + 1):
+
+            # La mayoría de sitios WordPress usan /page/N/
+            url = TARGET_URL if page == 1 else f"{TARGET_URL}/page/{page}/"
+
+            try:
+                response = requests.get(url, headers=headers, timeout=10)
+
+                if response.status_code == 404:
+                    print(f"Página {page} no existe, deteniendo.")
+                    break
+
+                soup = BeautifulSoup(response.text, "html.parser")
+                posts = soup.find_all("div", class_="post-container")
+
+                if not posts:
+                    print(f"Sin posts en página {page}, deteniendo.")
+                    break
+
+                for post in posts:
+                    link_tag = post.find("a", href=True)
+                    if link_tag:
+                        href = link_tag.get("href")
+                        full_url = BASE_URL + href if href.startswith("/") else href
+                        if full_url not in links:  # evitar duplicados
+                            links.append(full_url)
+
+                print(f"✅ Página {page}: {len(posts)} artículos encontrados")
+
+            except Exception as e:
+                print(f"Error en página {page}: {e}")
+                break
+
+        print(f"✅ Total links recolectados: {len(links)}")
+        return links
     @task()
     def extract_full_article_data(url): 
         headers = {"User-Agent": "Mozilla/5.0"}

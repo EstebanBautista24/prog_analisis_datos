@@ -41,9 +41,9 @@ def reddit_api_bronze_dag():
         }
         params = {
             "q": REDDIT_QUERY,
-            "limit": 25,
+            "limit": 100,
             "sort": "new",
-            "t": "all",
+            "t": "week",
         }
 
         try:
