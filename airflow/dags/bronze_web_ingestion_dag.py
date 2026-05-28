@@ -32,7 +32,7 @@ def football_universal_dag():
     def get_news_links():
         headers = {"User-Agent": "Mozilla/5.0"}
         links = []
-        max_pages = 5  # trae las últimas 5 páginas de artículos
+        max_pages = 1  # trae las últimas 5 páginas de artículos
 
         for page in range(1, max_pages + 1):
 
