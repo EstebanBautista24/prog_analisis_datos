@@ -223,7 +223,21 @@ def gold_processing_dag():
                 "Modelo spaCy no encontrado. "
                 "Ejecuta: python -m spacy download en_core_web_sm"
             )
-
+        CUSTOM_STOPWORDS = {
+    "real",
+    "madrid",
+    "club",
+    "team",
+    "player",
+    "players",
+    "season",
+    "game",
+    "games",
+    "match",
+    "football",
+    "laliga",
+    "league"
+}
         def process_text(text: str) -> str:
             """
             Pipeline spaCy en un solo pase:
@@ -235,14 +249,15 @@ def gold_processing_dag():
 
             doc = nlp(text)
             lemmas = [
-                token.lemma_
-                for token in doc
-                if not token.is_stop
-                and not token.is_punct
-                and not token.is_space
-                and token.is_alpha
-                and len(token.lemma_) >= 2
-            ]
+    token.lemma_.lower()
+    for token in doc
+    if not token.is_stop
+    and not token.is_punct
+    and not token.is_space
+    and token.is_alpha
+    and len(token.lemma_) >= 2
+    and token.lemma_.lower() not in CUSTOM_STOPWORDS
+]
             return " ".join(lemmas)
 
         # ── Aplicar ───────────────────────────────────────────────────────────
@@ -306,44 +321,143 @@ def gold_processing_dag():
             return "neutral"
 
         def analyze(row) -> dict:
+
             text = row.get("body_text", "")
+
             if not isinstance(text, str) or not text.strip():
                 text = row.get("title", "") or ""
+
             if not text.strip():
                 return {
                     "vader_compound": 0.0,
-                    "vader_pos":      0.0,
-                    "vader_neg":      0.0,
-                    "vader_neu":      1.0,
+                    "vader_pos": 0.0,
+                    "vader_neg": 0.0,
+                    "vader_neu": 1.0,
                     "sentiment_label": "neutral",
                 }
-            sc = analyzer.polarity_scores(text)
-            return {
-                "vader_compound":  round(sc["compound"], 4),
-                "vader_pos":       round(sc["pos"],      4),
-                "vader_neg":       round(sc["neg"],      4),
-                "vader_neu":       round(sc["neu"],      4),
-                "sentiment_label": vader_label(sc["compound"]),
-            }
 
-        df       = pd.read_json(StringIO(df_json), orient="records")
+            source = row.get("source", "")
+
+            # =====================================================
+            # SCRAPING (artículos largos)
+            # =====================================================
+            if source == "scraping":
+
+                MAX_CHARS = 1000
+                text = text[:MAX_CHARS]
+
+                paragraphs = [
+                    p.strip()
+                    for p in text.split("\n")
+                    if p.strip()
+                ]
+
+                if not paragraphs:
+                    paragraphs = [text]
+
+                paragraph_scores = [
+                    analyzer.polarity_scores(p)
+                    for p in paragraphs
+                ]
+
+                compound = sum(
+                    s["compound"]
+                    for s in paragraph_scores
+                ) / len(paragraph_scores)
+
+                pos = sum(
+                    s["pos"]
+                    for s in paragraph_scores
+                ) / len(paragraph_scores)
+
+                neg = sum(
+                    s["neg"]
+                    for s in paragraph_scores
+                ) / len(paragraph_scores)
+
+                neu = sum(
+                    s["neu"]
+                    for s in paragraph_scores
+                ) / len(paragraph_scores)
+
+                if compound >= 0.20:
+                    label = "positive"
+                elif compound <= -0.20:
+                    label = "negative"
+                else:
+                    label = "neutral"
+
+            # =====================================================
+            # REDDIT
+            # =====================================================
+            else:
+
+                sc = analyzer.polarity_scores(text)
+
+                compound = sc["compound"]
+                pos = sc["pos"]
+                neg = sc["neg"]
+                neu = sc["neu"]
+
+                if compound >= 0.05:
+                    label = "positive"
+                elif compound <= -0.05:
+                    label = "negative"
+                else:
+                    label = "neutral"
+
+            return {
+                "vader_compound": round(compound, 4),
+                "vader_pos": round(pos, 4),
+                "vader_neg": round(neg, 4),
+                "vader_neu": round(neu, 4),
+                "sentiment_label": label,
+            }
+         # ── Aplicar VADER ──────────────────────────────────────────────
+        df = pd.read_json(StringIO(df_json), orient="records")
+
         print(f"💬 Aplicando VADER a {len(df)} registros...")
 
-        vader_df = pd.DataFrame(df.apply(analyze, axis=1).tolist())
-        df       = pd.concat([df.reset_index(drop=True), vader_df], axis=1)
+        vader_df = pd.DataFrame(
+            df.apply(analyze, axis=1).tolist()
+        )
+
+        df = pd.concat(
+            [df.reset_index(drop=True), vader_df],
+            axis=1
+        )
 
         total = len(df)
-        dist  = df["sentiment_label"].value_counts()
+        dist = df["sentiment_label"].value_counts()
+
         print("✅ VADER completado:")
-        print(f"   └─ Positivos: {dist.get('positive', 0)} ({dist.get('positive', 0)/total*100:.1f}%)")
-        print(f"   └─ Neutrales: {dist.get('neutral',  0)} ({dist.get('neutral',  0)/total*100:.1f}%)")
-        print(f"   └─ Negativos: {dist.get('negative', 0)} ({dist.get('negative', 0)/total*100:.1f}%)")
-        print(f"   └─ Compound promedio: {df['vader_compound'].mean():.4f}")
+        print(
+            f"   └─ Positivos: {dist.get('positive', 0)} "
+            f"({dist.get('positive', 0)/total*100:.1f}%)"
+        )
+        print(
+            f"   └─ Neutrales: {dist.get('neutral', 0)} "
+            f"({dist.get('neutral', 0)/total*100:.1f}%)"
+        )
+        print(
+            f"   └─ Negativos: {dist.get('negative', 0)} "
+            f"({dist.get('negative', 0)/total*100:.1f}%)"
+        )
+
+        print(
+            f"   └─ Compound promedio: "
+            f"{df['vader_compound'].mean():.4f}"
+        )
+
         print("\n📊 Sentimiento por fuente:")
-        print(df.groupby("source")["sentiment_label"].value_counts().to_string())
+
+        print(
+            df.groupby("source")["sentiment_label"]
+            .value_counts()
+            .to_string()
+        )
 
         return df.to_json(orient="records")
-
     # ─────────────────────────────────────────────────────────────────────────
     # TASK 4 — Guardar Gold base + Governance KPIs
     # ─────────────────────────────────────────────────────────────────────────
@@ -385,7 +499,14 @@ def gold_processing_dag():
         import os
         import re
         from io import StringIO
+        print(type(df_json))
 
+        if df_json is None:
+            raise ValueError("df_json es None")
+
+        print("Longitud JSON:", len(df_json))
+        print("Primeros 500 caracteres:")
+        print(str(df_json)[:500])
         df = pd.read_json(StringIO(df_json), orient="records")
 
         if "published_at" in df.columns:
@@ -633,9 +754,13 @@ def gold_processing_dag():
 
         token_counts = Counter(all_tokens)
         top_keywords = pd.DataFrame(
-            token_counts.most_common(30),
-            columns=["keyword", "frequency"]
-        )
+    token_counts.most_common(50),
+    columns=["keyword", "frequency"]
+)
+        top_keywords = pd.DataFrame(
+    token_counts.most_common(50),
+    columns=["keyword", "frequency"]
+)
         print(f"📊 Agg3 — top_keywords: {len(top_keywords)} keywords")
 
         # ── Agg 4: Sentiment promedio por keyword (top 20) ────────────────────

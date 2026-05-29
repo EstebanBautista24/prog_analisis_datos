@@ -1,5 +1,6 @@
 import os
 from datetime import datetime, timedelta
+from urllib import response
 
 import pandas as pd
 import requests
@@ -10,7 +11,7 @@ except ImportError:
 
 
 BRONZE_PATH = "/opt/airflow/datalake_bronze"
-REDDIT_SEARCH_URL = "https://www.reddit.com/search.json"
+REDDIT_SEARCH_URL = "https://www.reddit.com/r/realmadrid/search.json"
 REDDIT_QUERY = "Real Madrid -Castilla"
 
 default_args = {
@@ -34,16 +35,24 @@ def reddit_api_bronze_dag():
     @task()
     def fetch_reddit_posts():
         from langdetect import detect, LangDetectException
-        
+
         headers = {
             "User-Agent": "python:sentiment.analysis:v1.0 (by /u/test)",
             "Accept": "application/json",
         }
+
+        retrieved_at = datetime.utcnow().isoformat()
+        records      = []
+        skipped_lang = 0
+        urls_vistas  = set()
+
+        # ── Intento 1: search.json ────────────────────────────────────────────
         params = {
-            "q": REDDIT_QUERY,
-            "limit": 25,
-            "sort": "new",
-            "t": "all",
+            "q":           REDDIT_QUERY,
+            "limit":       100,
+            "sort":        "new",
+            "restrict_sr": True,
+            "t":           "week",
         }
 
         try:
@@ -53,59 +62,79 @@ def reddit_api_bronze_dag():
                 params=params,
                 timeout=10,
             )
+            print(f"Status code: {response.status_code}")
+            print(f"Response raw: {response.text[:500]}")
             response.raise_for_status()
             payload = response.json()
-
-            records = []
-            retrieved_at = datetime.utcnow().isoformat()
-            skipped_lang = 0
-
-            for post in payload.get("data", {}).get("children", []):
-                info = post.get("data", {})
-
-                # ── Filtro de idioma ──────────────────────────────────────────────
-                title = info.get("title", "") or ""
-                selftext = info.get("selftext", "") or ""
-                text_to_check = f"{title} {selftext}".strip()
-
-                try:
-                    lang = detect(text_to_check) if text_to_check else "unknown"
-                except LangDetectException:
-                    lang = "unknown"
-
-                if lang != "en":
-                    skipped_lang += 1
-                    print(f"⏭️  Ignorado (idioma={lang}): {title[:60]}")
-                    continue
-
-                permalink = info.get("permalink")
-                url = f"https://www.reddit.com{permalink}" if permalink else info.get("url")
-
-                records.append(
-                    {
-                        "api_query": REDDIT_QUERY,
-                        "url": url,
-                        "permalink": permalink,
-                        "title": title,
-                        "selftext": selftext,
-                        "author": info.get("author"),
-                        "score": info.get("score"),
-                        "num_comments": info.get("num_comments"),
-                        "created_utc": info.get("created_utc"),
-                        "subreddit": info.get("subreddit"),
-                        "retrieved_at": retrieved_at,
-                        "lang": lang,
-                    }
-                )
-
-            print(f"✅ Posts en inglés: {len(records)}")
-            print(f"⏭️  Posts ignorados por idioma: {skipped_lang}")
-
-            return records
-
+            children = payload.get("data", {}).get("children", [])
+            print(f"📡 search.json retornó {len(children)} posts")
+            
         except Exception as exc:
-            print(f"Error obteniendo datos de Reddit: {exc}")
-            return []
+            print(f"⚠️  search.json falló: {exc}")
+            children = []
+
+        # ── Intento 2: new.json como fallback si search trajo poco ───────────
+        if len(children) < 5:
+            print("📡 Pocos resultados en search.json, usando new.json como fallback...")
+            try:
+                response = requests.get(
+                    "https://www.reddit.com/r/realmadrid/new.json",
+                    headers=headers,
+                    params={"limit": 100},
+                    timeout=10,
+                )
+                print(f"Status code: {response.status_code}")
+                print(f"Response raw: {response.text[:500]}")
+                response.raise_for_status()
+                payload  = response.json()
+                children = payload.get("data", {}).get("children", [])
+                print(f"📡 new.json retornó {len(children)} posts")
+            except Exception as exc:
+                print(f"⚠️  new.json también falló: {exc}")
+
+        # ── Procesar posts ────────────────────────────────────────────────────
+        for post in children:
+            info      = post.get("data", {})
+            title     = info.get("title", "") or ""
+            selftext  = info.get("selftext", "") or ""
+            permalink = info.get("permalink")
+            url       = f"https://www.reddit.com{permalink}" if permalink else info.get("url")
+
+            if url in urls_vistas:
+                continue
+            urls_vistas.add(url)
+
+            text_to_check = f"{title} {selftext}".strip()
+            try:
+                lang = detect(text_to_check) if text_to_check else "unknown"
+            except LangDetectException:
+                lang = "unknown"
+
+            if lang != "en":
+                skipped_lang += 1
+                print(f"⏭️  Ignorado (idioma={lang}): {title[:60]}")
+                continue
+
+            records.append({
+                "api_query":    REDDIT_QUERY,
+                "url":          url,
+                "permalink":    permalink,
+                "title":        title,
+                "selftext":     selftext,
+                "author":       info.get("author"),
+                "score":        info.get("score"),
+                "num_comments": info.get("num_comments"),
+                "created_utc":  info.get("created_utc"),
+                "subreddit":    info.get("subreddit"),
+                "retrieved_at": retrieved_at,
+                "lang":         lang,
+            })
+
+        print(f"✅ Posts en inglés: {len(records)}")
+        print(f"⏭️  Posts ignorados por idioma: {skipped_lang}")
+        return records
+
+
     
     @task()
     def save_to_bronze_json(records):
