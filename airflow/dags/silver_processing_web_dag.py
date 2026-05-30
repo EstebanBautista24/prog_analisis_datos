@@ -1,6 +1,7 @@
 from airflow.decorators import dag, task
 from airflow.sensors.filesystem import FileSensor
 from airflow.models import Variable
+from airflow.exceptions import AirflowSkipException
 from datetime import datetime, timedelta
 import os
 import glob
@@ -25,7 +26,7 @@ SILVER_PATH = "/opt/airflow/datalake_silver"
 
 default_args = {
     "owner": "airflow",
-    "retries": 1,
+    "retries": 2,
     "retry_delay": timedelta(minutes=5),
 }
 
@@ -88,7 +89,9 @@ def football_silver_dag():
         ]
 
         if not pending_files:
-            raise ValueError(
+            # No es error: nada nuevo que procesar. Skip mantiene limpio el
+            # historial y el KPI de frecuencia de ingesta.
+            raise AirflowSkipException(
                 f"No hay archivos nuevos. Último procesado: {last_processed_ts}"
             )
 
@@ -105,6 +108,8 @@ def football_silver_dag():
 
         import ast
         import string
+        import html
+        import unicodedata
         from io import StringIO
 
         import pandas as pd
@@ -139,11 +144,17 @@ def football_silver_dag():
         def extract_body(p_val):
             try:
                 paragraphs = p_val if isinstance(p_val, list) else ast.literal_eval(p_val)
-                clean = [
-                    p for p in paragraphs
-                    if len(p) >= 80
-                    and not any(n in p for n in NOISE_PHRASES)
-                ]
+                clean = []
+                for p in paragraphs:
+                    if not isinstance(p, str):
+                        continue
+                    # decodificar entidades y quitar etiquetas HTML residuales
+                    # del scraping, antes de filtrar por longitud / boilerplate
+                    p = html.unescape(p)
+                    p = re.sub(r"<[^>]+>", " ", p)
+                    p = re.sub(r"\s+", " ", p).strip()
+                    if len(p) >= 80 and not any(n in p for n in NOISE_PHRASES):
+                        clean.append(p)
                 return " ".join(clean) if clean else None
             except Exception:
                 return None
@@ -159,6 +170,13 @@ def football_silver_dag():
 
             if not isinstance(text, str) or not text.strip():
                 return ""
+
+            # normalización de codificación (arregla artefactos Unicode)
+            text = unicodedata.normalize("NFKC", text)
+
+            # decodificar entidades HTML y quitar etiquetas residuales
+            text = html.unescape(text)
+            text = re.sub(r"<[^>]+>", " ", text)
 
             text = text.lower()
 
@@ -225,7 +243,9 @@ def football_silver_dag():
         # ── Fallback fechas ───────────────────────────────────────────────────
         mask_no_date = df["published_at"].isnull()
 
-        if mask_no_date.any():
+        # Solo intentar el fallback si la columna de respaldo existe en el bronze;
+        # de lo contrario un cambio de esquema rompería la tarea con KeyError.
+        if mask_no_date.any() and "published_time" in df.columns:
             df.loc[mask_no_date, "published_at"] = pd.to_datetime(
                 df.loc[mask_no_date, "published_time"],
                 dayfirst=True,
@@ -233,6 +253,8 @@ def football_silver_dag():
                 utc=True,
             )
             print(f"📅 Fechas recuperadas: {mask_no_date.sum()}")
+        elif mask_no_date.any():
+            print(f"⚠️  {mask_no_date.sum()} fechas nulas sin columna 'published_time' para fallback")
 
         # ── Author nulls ──────────────────────────────────────────────────────
         df["author"] = df["author"].fillna("Unknown").astype(str)

@@ -178,25 +178,62 @@ def gold_processing_dag():
                 "Ejecuta: python -m spacy download en_core_web_sm"
             )
 
-        CUSTOM_STOPWORDS = {
-            "real", "madrid", "club", "team", "player", "players",
-            "season", "game", "games", "match", "football", "laliga", "league"
+        # ── Stopwords en ESPAÑOL ──────────────────────────────────────────────
+        # El modelo spaCy es en inglés (en_core_web_sm) y NO conoce estas
+        # palabras, por eso "el", "la", "los"... se colaban en las gráficas.
+        # Vienen de "El Clásico", "La Liga", nombres y citas en español.
+        SPANISH_STOPWORDS = {
+            "el", "la", "los", "las", "un", "una", "unos", "unas", "lo",
+            "de", "del", "al", "ante", "con", "contra", "desde", "durante",
+            "en", "entre", "hacia", "hasta", "para", "por", "segun", "sin",
+            "sobre", "tras", "y", "e", "o", "u", "que", "se", "su", "sus",
+            "le", "les", "es", "son", "fue", "ser", "no", "mas", "muy", "ya",
+            "si", "como", "esta", "este", "esto", "esa", "ese", "eso", "pero",
+            "tambien", "todo", "todos", "toda", "todas", "ni", "ha", "han",
+            "hay", "mi", "tu", "nos", "me", "te",
         }
+
+        # ── Vocabulario GENÉRICO que no explica el sentimiento ────────────────
+        # Nombres del equipo + ruido temporal/futbolístico ("week", "gol",
+        # "time"...). NO se incluyen palabras con carga de sentimiento
+        # (good, win, loss, great...) porque ESAS sí explican el porqué.
+        DOMAIN_STOPWORDS = {
+            "real", "madrid", "club", "team", "player", "players",
+            "season", "game", "games", "match", "matches", "football",
+            "laliga", "liga", "league", "play", "playing", "played",
+            "time", "week", "weeks", "day", "days", "year", "years",
+            "month", "today", "yesterday", "tomorrow", "gol", "goal",
+            "goals", "minute", "minutes", "half", "side", "thing", "things",
+            "way", "ways", "lot", "bit", "guy", "guys", "people", "fan",
+            "fans", "head", "like", "just", "going", "get", "got", "really",
+            "want", "think", "know", "say", "said", "make", "made", "see",
+        }
+
+        ALL_CUSTOM_STOPWORDS = SPANISH_STOPWORDS | DOMAIN_STOPWORDS
+        SPACY_STOPWORDS      = nlp.Defaults.stop_words   # lista de spaCy (inglés)
 
         def process_text(text: str) -> str:
             if not isinstance(text, str) or not text.strip():
                 return ""
             doc = nlp(text)
-            lemmas = [
-                token.lemma_.lower()
-                for token in doc
-                if not token.is_stop
-                and not token.is_punct
-                and not token.is_space
-                and token.is_alpha
-                and len(token.lemma_) >= 2
-                and token.lemma_.lower() not in CUSTOM_STOPWORDS
-            ]
+            lemmas = []
+            for token in doc:
+                if token.is_stop or token.is_punct or token.is_space:
+                    continue
+                if not token.is_alpha:
+                    continue
+                lemma = token.lemma_.lower()
+                # Longitud mínima 3: elimina "el", "la", "go", "no", iniciales...
+                if len(lemma) < 3:
+                    continue
+                # Re-chequea el LEMA como stopword de spaCy.
+                # Esto atrapa fugas tipo "going"->"go", "not", "like" que
+                # is_stop no marca sobre la forma flexionada original.
+                if lemma in SPACY_STOPWORDS:
+                    continue
+                if lemma in ALL_CUSTOM_STOPWORDS:
+                    continue
+                lemmas.append(lemma)
             return " ".join(lemmas)
 
         df = pd.read_json(StringIO(df_json), orient="records")
@@ -462,9 +499,11 @@ def gold_processing_dag():
         Agrega los datos Gold para el dashboard de Workshop 4.
 
         Archivos producidos en datalake_gold/:
-          sentiment_distribution_*.parquet   → KPI cards + donut chart
+          sentiment_distribution_*.parquet   → KPI cards + donut chart (global y por fuente)
+          sentiment_dist_time_*.parquet      → NUEVO: distribución de sentimiento por periodo
           sentiment_trend_*.parquet          → Line chart temporal
-          top_keywords_*.parquet             → Bar chart keywords
+          top_keywords_*.parquet             → Bar chart keywords (unigramas)
+          top_bigrams_*.parquet              → NUEVO: bigramas más frecuentes (n-grams)
           keyword_sentiment_*.parquet        → Bar chart por keyword
           source_comparison_*.parquet        → Reddit vs prensa
           volume_trend_*.parquet             → Area chart actividad
@@ -497,6 +536,22 @@ def gold_processing_dag():
         sent_dist["pct"] = (sent_dist["count"] / total * 100).round(2)
         print(f"📊 Agg1 — sentiment_distribution: {len(sent_dist)} filas")
 
+        # ── Agg 1b: Sentiment distribution POR PERIODO ────────────────────────
+        # Requisito Workshop 3: conteo y % de pos/neg/neu "overall AND per
+        # time period". Esto da la mezcla de sentimiento semana a semana.
+        if "week" in df.columns:
+            sent_dist_time = (
+                df.groupby(["week", "sentiment_label"])
+                .size()
+                .reset_index(name="count")
+            )
+            week_totals = sent_dist_time.groupby("week")["count"].transform("sum")
+            sent_dist_time["pct"] = (sent_dist_time["count"] / week_totals * 100).round(2)
+            sent_dist_time = sent_dist_time.sort_values("week")
+        else:
+            sent_dist_time = pd.DataFrame(columns=["week", "sentiment_label", "count", "pct"])
+        print(f"📊 Agg1b — sentiment_dist_time: {len(sent_dist_time)} filas")
+
         # ── Agg 2: Sentiment trend por semana ─────────────────────────────────
         if "week" in df.columns:
             sent_trend = (
@@ -522,6 +577,22 @@ def gold_processing_dag():
             columns=["keyword", "frequency"]
         )
         print(f"📊 Agg3 — top_keywords: {len(top_keywords)} keywords")
+
+        # ── Agg 3b: Top 30 BIGRAMAS (n-grams) ─────────────────────────────────
+        # Requisito Workshop 3: "Most frequent terms AND bigrams".
+        # Se construyen sobre el texto ya preprocesado (text_processed), por lo
+        # que heredan el filtrado de stopwords del pipeline NLP.
+        bigram_counter = Counter()
+        for text in df["text_processed"].dropna():
+            if isinstance(text, str) and text.strip():
+                toks = text.split()
+                for i in range(len(toks) - 1):
+                    bigram_counter[f"{toks[i]} {toks[i + 1]}"] += 1
+        top_bigrams = pd.DataFrame(
+            bigram_counter.most_common(30),
+            columns=["bigram", "frequency"]
+        )
+        print(f"📊 Agg3b — top_bigrams: {len(top_bigrams)} bigramas")
 
         # ── Agg 4: Sentiment promedio por keyword (top 20) ────────────────────
         top20_words = [w for w, _ in token_counts.most_common(20)]
@@ -569,6 +640,11 @@ def gold_processing_dag():
         print(f"📊 Agg6 — volume_trend: {len(vol_trend)} filas")
 
         # ── Agg 7: Aspect-based sentiment ─────────────────────────────────────
+        # Aspectos = entidades curadas manualmente. NO se generan solos a
+        # partir de las palabras frecuentes; por eso aquí solo van entidades
+        # que de verdad afectan al sentimiento (jugadores, rivales, temas),
+        # nunca ruido como "week" o "gol". Para agregar un protagonista nuevo,
+        # añádelo aquí Y en el dict LABELS de storytelling_app.py.
         ASPECTS = {
             "mourinho":   ["mourinho", "mou"],
             "mbappe":     ["mbappe", "kylian"],
@@ -579,6 +655,11 @@ def gold_processing_dag():
             "arbeloa":    ["arbeloa"],
             "bellingham": ["bellingham", "jude"],
             "valverde":   ["valverde", "fede"],
+            # ── Entidades agregadas manualmente ──────────────────────────────
+            "barcelona":  ["barcelona", "barca", "barça", "barsa"],
+            "clasico":    ["clasico", "clásico"],
+            "tchouameni": ["tchouameni", "tchoumeni", "tchouaméni"],
+            "ancelotti":  ["ancelotti", "carlo", "ancheloti"],
         }
 
         aspect_rows = []
@@ -629,6 +710,17 @@ def gold_processing_dag():
         # Para cada aspecto y cada polo de sentimiento (positive/negative),
         # extrae las top-10 palabras del text_processed de esos registros.
         # Responde: "¿qué palabras hacen que Valverde sea negativo?"
+        #
+        # Red de seguridad: aunque text_processed ya viene limpio del pipeline
+        # NLP, este blocklist garantiza que stopwords en español ("el", "la")
+        # o ruido genérico nunca aparezcan en las gráficas, incluso si se corre
+        # con Parquet procesados por una versión antigua del pipeline.
+        COWORD_BLOCKLIST = {
+            "el", "la", "los", "las", "un", "una", "lo", "de", "del", "que",
+            "se", "su", "es", "no", "mas", "como", "para", "por", "con", "en",
+            "play", "time", "week", "day", "gol", "goal", "head", "like",
+            "just", "going", "thing", "way", "people", "really",
+        }
         coword_rows = []
         for aspect, keywords in ASPECTS.items():
             pattern   = "|".join([rf"\b{kw}\b" for kw in keywords])
@@ -652,10 +744,15 @@ def gold_processing_dag():
                     if isinstance(text, str) and text.strip():
                         all_toks.extend(text.split())
 
-                # Excluir las propias palabras clave del aspecto para no contaminar
+                # Excluir: las propias keywords del aspecto, el blocklist y
+                # tokens muy cortos (≤2 chars) que casi siempre son ruido.
                 aspect_kw_set = set(keywords)
-                filtered = [(w, c) for w, c in Counter(all_toks).most_common(15)
-                            if w.lower() not in aspect_kw_set]
+                filtered = [
+                    (w, c) for w, c in Counter(all_toks).most_common(25)
+                    if w.lower() not in aspect_kw_set
+                    and w.lower() not in COWORD_BLOCKLIST
+                    and len(w) >= 3
+                ]
 
                 for word, freq in filtered[:10]:
                     coword_rows.append({
@@ -720,8 +817,10 @@ def gold_processing_dag():
         # ── Guardar cada agregación como Parquet independiente ────────────────
         aggregations = {
             "sentiment_distribution": sent_dist,
+            "sentiment_dist_time":    sent_dist_time,   # NUEVO (por periodo)
             "sentiment_trend":        sent_trend,
             "top_keywords":           top_keywords,
+            "top_bigrams":            top_bigrams,       # NUEVO (n-grams)
             "keyword_sentiment":      kw_sentiment,
             "source_comparison":      source_comp,
             "volume_trend":           vol_trend,

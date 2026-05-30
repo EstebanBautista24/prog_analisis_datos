@@ -1,6 +1,7 @@
 from airflow.decorators import dag, task
 from airflow.sensors.filesystem import FileSensor
 from airflow.models import Variable
+from airflow.exceptions import AirflowSkipException
 from datetime import datetime, timedelta
 
 import os
@@ -26,7 +27,7 @@ SILVER_PATH = "/opt/airflow/datalake_silver"
 
 default_args = {
     "owner": "airflow",
-    "retries": 1,
+    "retries": 2,
     "retry_delay": timedelta(minutes=5),
 }
 
@@ -83,7 +84,9 @@ def reddit_api_silver_dag():
         )
 
         if latest_ts <= last_processed_ts:
-            raise ValueError(
+            # No es un error: simplemente no hay nada nuevo que procesar.
+            # Skip mantiene limpio el historial y el KPI de frecuencia de ingesta.
+            raise AirflowSkipException(
                 f"No hay archivo nuevo. "
                 f"Último procesado: {last_processed_ts}"
             )
@@ -98,6 +101,8 @@ def reddit_api_silver_dag():
 
         import json
         import string
+        import html
+        import unicodedata
 
         import pandas as pd
         import matplotlib.pyplot as plt
@@ -109,6 +114,13 @@ def reddit_api_silver_dag():
 
             if not isinstance(text, str) or not text.strip():
                 return ""
+
+            # normalización de codificación (arregla artefactos Unicode)
+            text = unicodedata.normalize("NFKC", text)
+
+            # decodificar entidades HTML (&amp; &#39; &nbsp;...) y quitar etiquetas
+            text = html.unescape(text)
+            text = re.sub(r"<[^>]+>", " ", text)
 
             text = text.lower()
 
@@ -366,11 +378,14 @@ def reddit_api_silver_dag():
         print(f"💾 Parquet guardado: {parquet_path}")
 
         # ── Actualizar Variable ───────────────────────────────────────────────
-        Variable.delete("last_processed_reddit_api_ts")
+        # NOTA: Variable.set ya sobrescribe. NO usar Variable.delete antes,
+        # porque en la primera corrida la variable aún no existe y delete
+        # lanzaría KeyError DESPUÉS de haber insertado en Postgres y escrito
+        # el Parquet, dejando el control sin actualizar (reprocesamiento en bucle).
         Variable.set(
             "last_processed_reddit_api_ts",
             extract_ts_from_filename(bronze_filepath),
-            )
+        )
 
         print("🔖 Variable actualizada → last_processed_reddit_api_ts")
 

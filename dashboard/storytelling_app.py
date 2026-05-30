@@ -25,19 +25,21 @@ import dash_bootstrap_components as dbc
 GOLD_PATH = "/opt/airflow/datalake_gold"
 
 COLORS = {
-    "positive":  "#27ae60",
-    "neutral":   "#95a5a6",
-    "negative":  "#c0392b",
-    "reddit":    "#d35400",
-    "scraping":  "#1a3a5c",
-    "bg":        "#ffffff",
-    "card_bg":   "#f8f7f4",
-    "border":    "#e8e4dc",
-    "text":      "#1a1a1a",
-    "muted":     "#666666",
-    "dim":       "#999999",
-    "accent":    "#b8962e",
-    "accent2":   "#7a1818",
+    "positive":  "#2f7d52",   # verde pino editorial (menos "bootstrap")
+    "neutral":   "#9a9081",    # taupe cálido
+    "negative":  "#a8322d",    # oxblood / ladrillo
+    "reddit":    "#c85a1f",     # naranja quemado
+    "scraping":  "#22405e",     # azul tinta
+    "bg":        "#faf9f6",     # blanco papel cálido (no estéril)
+    "card_bg":   "#f3efe6",     # crema
+    "border":    "#e6ded2",      # borde tenue (sólido, compatible con Plotly)
+    "border_solid": "#ddd4c6",
+    "text":      "#1c1a17",      # tinta casi negra, cálida
+    "muted":     "#5f5a52",
+    "dim":       "#9c958a",
+    "accent":    "#b08a2e",       # oro apagado
+    "accent2":   "#7a1818",       # vino
+    "shadow":    "rgba(40, 33, 22, 0.06)",
 }
 
 FONT_HEAD = "'Playfair Display', Georgia, serif"
@@ -51,18 +53,28 @@ SENTIMENT_COLORS = {
 }
 
 CHART_LAYOUT = dict(
-    paper_bgcolor = COLORS["bg"],
-    plot_bgcolor  = COLORS["bg"],
-    font          = dict(color=COLORS["text"], family=FONT_BODY, size=11),
+    paper_bgcolor = "rgba(0,0,0,0)",
+    plot_bgcolor  = "rgba(0,0,0,0)",
+    font          = dict(color=COLORS["text"], family=FONT_BODY, size=11.5),
     margin        = dict(l=40, r=20, t=40, b=40),
-    legend        = dict(bgcolor="rgba(0,0,0,0)", bordercolor=COLORS["border"]),
-    xaxis = dict(gridcolor=COLORS["border"], linecolor=COLORS["border"],
-                 tickcolor=COLORS["border"], zeroline=False),
-    yaxis = dict(gridcolor=COLORS["border"], linecolor=COLORS["border"],
-                 tickcolor=COLORS["border"], zeroline=False),
+    legend        = dict(bgcolor="rgba(0,0,0,0)", bordercolor="rgba(0,0,0,0)"),
+    hoverlabel    = dict(
+        bgcolor="#1c1a17", bordercolor="#1c1a17",
+        font=dict(color="#faf9f6", family=FONT_MONO, size=11),
+    ),
+    xaxis = dict(gridcolor="rgba(0,0,0,0.05)", linecolor=COLORS["border"],
+                 tickcolor=COLORS["border"], zeroline=False,
+                 tickfont=dict(size=10.5, color=COLORS["muted"])),
+    yaxis = dict(gridcolor="rgba(0,0,0,0.05)", linecolor=COLORS["border"],
+                 tickcolor=COLORS["border"], zeroline=False,
+                 tickfont=dict(size=10.5, color=COLORS["muted"])),
 )
 
 # Etiquetas legibles para los aspectos
+# Etiquetas legibles para los aspectos.
+# IMPORTANTE: las claves deben coincidir EXACTAMENTE con el dict ASPECTS
+# del DAG (gold_processing_dag.py). Para agregar un protagonista nuevo,
+# añádelo en ambos lugares.
 LABELS = {
     "mourinho":   "Mourinho",
     "mbappe":     "Mbappé",
@@ -73,6 +85,10 @@ LABELS = {
     "arbeloa":    "Arbeloa",
     "bellingham": "Bellingham",
     "valverde":   "Valverde",
+    "barcelona":  "Barcelona",
+    "clasico":    "El Clásico",
+    "tchouameni": "Tchouaméni",
+    "ancelotti":  "Ancelotti",
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -112,9 +128,10 @@ def last_updated():
 CARD = {
     "backgroundColor": COLORS["card_bg"],
     "border":          f"1px solid {COLORS['border']}",
-    "borderRadius":    "4px",
+    "borderRadius":    "6px",
     "padding":         "20px",
     "marginBottom":    "16px",
+    "boxShadow":       f"0 1px 3px {COLORS['shadow']}",
 }
 
 
@@ -180,6 +197,20 @@ def pill(txt, color):
         "fontFamily": FONT_MONO,
         "marginRight": "6px", "marginBottom": "4px",
     })
+
+
+def legend_dot(color, label):
+    """Punto de color + etiqueta, para la leyenda de sentimiento."""
+    return html.Span(style={"display": "inline-flex", "alignItems": "center", "gap": "6px"}, children=[
+        html.Span(style={
+            "width": "11px", "height": "11px", "borderRadius": "50%",
+            "background": color, "display": "inline-block",
+            "border": f"1px solid {color}",
+        }),
+        html.Span(label, style={
+            "fontFamily": FONT_BODY, "fontSize": "0.75rem", "color": COLORS["muted"],
+        }),
+    ])
 
 
 def ibox(icon, title, body, color=None):
@@ -251,13 +282,100 @@ app = Dash(
     __name__,
     external_stylesheets=[
         dbc.themes.BOOTSTRAP,
-        "https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,700"
-        "&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap",
+        "https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,700;0,800;0,900;1,500;1,700;1,900"
+        "&family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap",
     ],
     title="Real Madrid Pulse",
     meta_tags=[{"name": "viewport", "content": "width=device-width, initial-scale=1"}],
 )
 server = app.server
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CSS GLOBAL — textura de papel, microinteracciones, selectores tipo "pill".
+# Todo esto da el acabado "hecho a mano" (editorial) y evita el look genérico.
+# ─────────────────────────────────────────────────────────────────────────────
+app.index_string = """
+<!DOCTYPE html>
+<html>
+<head>
+  {%metas%}<title>{%title%}</title>{%favicon%}{%css%}
+  <style>
+    :root {
+      --ink:    #1c1a17;
+      --paper:  #faf9f6;
+      --cream:  #f3efe6;
+      --border: #e6ded2;
+      --gold:   #b08a2e;
+      --pos:    #2f7d52;
+      --neg:    #a8322d;
+    }
+    * { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background-color: var(--paper);
+      /* grano de papel muy sutil: dos capas de ruido en SVG */
+      background-image:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
+    }
+    /* Tarjetas: elevación suave al pasar el cursor */
+    .rm-card {
+      transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+    }
+    .rm-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 22px rgba(40,33,22,0.08);
+      border-color: #d8cfbf !important;
+    }
+    /* Selectores (RadioItems) convertidos en pills */
+    .rm-pills .form-check {
+      display: inline-block;
+      padding: 0; margin: 0 7px 7px 0;
+    }
+    .rm-pills .form-check-input { display: none; }
+    .rm-pills .form-check-label {
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: #fff;
+      border-radius: 999px;
+      padding: 5px 13px !important;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.72rem !important;
+      color: #5f5a52 !important;
+      transition: all .15s ease;
+      letter-spacing: 0.01em;
+    }
+    .rm-pills .form-check-label:hover {
+      border-color: var(--gold);
+      color: var(--ink) !important;
+    }
+    .rm-pills .form-check-input:checked + .form-check-label {
+      background: var(--ink);
+      border-color: var(--ink);
+      color: var(--paper) !important;
+    }
+    /* Scrollbar discreto */
+    ::-webkit-scrollbar { width: 11px; height: 11px; }
+    ::-webkit-scrollbar-track { background: var(--cream); }
+    ::-webkit-scrollbar-thumb {
+      background: #cfc6b6; border-radius: 6px;
+      border: 3px solid var(--cream);
+    }
+    ::-webkit-scrollbar-thumb:hover { background: var(--gold); }
+    /* Selección de texto en tono dorado */
+    ::selection { background: rgba(176,138,46,0.22); }
+    /* Línea decorativa superior tricolor (acento de marca) */
+    .rm-topbar { height: 4px; width: 100%;
+      background: linear-gradient(90deg, var(--ink) 0 33%, var(--gold) 33% 66%, var(--ink) 66% 100%); }
+  </style>
+</head>
+<body>
+  <div class="rm-topbar"></div>
+  {%app_entry%}
+  <footer>{%config%}{%scripts%}{%renderer%}</footer>
+</body>
+</html>
+"""
 
 # ─────────────────────────────────────────────────────────────────────────────
 # LAYOUT
@@ -293,12 +411,14 @@ app.layout = html.Div(
             }, children=[
                 html.Div([
                     html.Div("REAL MADRID PULSE", style={
-                        "fontFamily": FONT_HEAD, "fontSize": "2.8rem",
-                        "fontWeight": "700", "color": COLORS["text"], "lineHeight": "1",
+                        "fontFamily": FONT_HEAD, "fontSize": "3.4rem",
+                        "fontWeight": "900", "color": COLORS["text"],
+                        "lineHeight": "0.95", "letterSpacing": "-0.015em",
                     }),
-                    html.Div("What does the world actually think about Real Madrid?", style={
-                        "fontFamily": FONT_HEAD, "fontSize": "1rem",
-                        "fontStyle": "italic", "color": COLORS["muted"], "marginTop": "5px",
+                    html.Div("¿Qué piensa realmente el mundo del Real Madrid?", style={
+                        "fontFamily": FONT_HEAD, "fontSize": "1.05rem",
+                        "fontStyle": "italic", "fontWeight": "500",
+                        "color": COLORS["muted"], "marginTop": "7px",
                     }),
                 ]),
                 html.Div(style={"textAlign": "right"}, children=[
@@ -318,6 +438,36 @@ app.layout = html.Div(
             ]),
         ]),
 
+        # ── BANDA-LEYENDA — clave de lectura para el usuario final ────────────
+        html.Div(style={
+            "backgroundColor": COLORS["card_bg"],
+            "borderBottom": f"1px solid {COLORS['border']}",
+            "padding": "10px 48px",
+            "display": "flex", "alignItems": "center",
+            "gap": "26px", "flexWrap": "wrap",
+        }, children=[
+            html.Span("CÓMO LEER ESTO", style={
+                "fontFamily": FONT_MONO, "fontSize": "0.56rem",
+                "color": COLORS["dim"], "letterSpacing": "0.14em",
+            }),
+            # clave de colores
+            html.Div(style={"display": "flex", "gap": "16px", "alignItems": "center"}, children=[
+                legend_dot(COLORS["positive"], "Positivo"),
+                legend_dot(COLORS["neutral"],  "Neutral"),
+                legend_dot(COLORS["negative"], "Negativo"),
+            ]),
+            html.Div(style={"width": "1px", "height": "16px", "background": COLORS["border"]}),
+            # explicación del índice de ánimo (compound score en lenguaje llano)
+            html.Span([
+                html.Span("Índice de ánimo", style={"fontWeight": "600", "color": COLORS["text"]}),
+                html.Span("  va de ", style={"color": COLORS["muted"]}),
+                html.Span("−1 (muy crítico)", style={"color": COLORS["negative"], "fontWeight": "600"}),
+                html.Span(" a ", style={"color": COLORS["muted"]}),
+                html.Span("+1 (muy positivo)", style={"color": COLORS["positive"], "fontWeight": "600"}),
+                html.Span(". Cerca de 0 = opiniones divididas.", style={"color": COLORS["muted"]}),
+            ], style={"fontFamily": FONT_BODY, "fontSize": "0.74rem"}),
+        ]),
+
         # ── CONTENIDO PRINCIPAL ───────────────────────────────────────────────
         html.Div(style={"padding": "36px 48px", "maxWidth": "1400px"}, children=[
 
@@ -331,25 +481,20 @@ app.layout = html.Div(
                 sec_label("02 — Evolución temporal"),
                 sec_q("¿Ha cambiado el ánimo de la afición con el tiempo?"),
                 sec_a(
-                    "Seguimos el compound score promedio día a día. Un score positivo indica un período "
-                    "optimista; negativo, un período de crítica o preocupación. Las barras muestran "
+                    "Seguimos el índice de ánimo promedio día a día. Por encima de cero indica un período "
+                    "optimista; por debajo, un período de crítica o preocupación. Las barras muestran "
                     "cuántas menciones hubo — los picos revelan momentos de alta actividad."
                 ),
                 dbc.Row([
                     dbc.Col([
                         dbc.RadioItems(
                             id="time-granularity",
+                            className="rm-pills",
                             options=[
                                 {"label": " Por día",    "value": "day"},
                                 {"label": " Por semana", "value": "week"},
                             ],
                             value="day", inline=True,
-                            inputStyle={"marginRight": "4px"},
-                            labelStyle={
-                                "marginRight": "16px", "color": COLORS["muted"],
-                                "fontSize": "0.78rem", "fontFamily": FONT_MONO,
-                                "cursor": "pointer",
-                            },
                             style={"marginBottom": "10px"},
                         ),
                         dcc.Graph(id="sentiment-trend-chart", config={"displayModeBar": False}),
@@ -374,7 +519,7 @@ app.layout = html.Div(
                 ),
                 dbc.Row([
                     dbc.Col(
-                        html.Div(style=CARD, children=[
+                        html.Div(className="rm-card", style=CARD, children=[
                             html.Div("Distribución global", style={
                                 "fontFamily": FONT_MONO, "fontSize": "0.62rem",
                                 "color": COLORS["muted"], "marginBottom": "8px",
@@ -383,7 +528,7 @@ app.layout = html.Div(
                         ]), width=4
                     ),
                     dbc.Col(
-                        html.Div(style=CARD, children=[
+                        html.Div(className="rm-card", style=CARD, children=[
                             html.Div("Reddit vs Football-España", style={
                                 "fontFamily": FONT_MONO, "fontSize": "0.62rem",
                                 "color": COLORS["muted"], "marginBottom": "8px",
@@ -405,12 +550,32 @@ app.layout = html.Div(
                 sec_label("04 — El vocabulario del momento"),
                 sec_q("¿De qué habla la gente cuando habla de Real Madrid?"),
                 sec_a(
-                    "Las palabras más frecuentes en los textos procesados revelan los temas que dominan "
-                    "la conversación. El color indica si esa palabra aparece en contextos positivos "
-                    "(verde), negativos (rojo) o neutros (gris)."
+                    "A la izquierda, las palabras sueltas más frecuentes (el color indica si aparecen en "
+                    "contextos positivos, negativos o neutros). A la derecha, las parejas de palabras "
+                    "(bigramas) más repetidas — revelan los temas concretos de la conversación, no solo "
+                    "términos aislados."
                 ),
-                html.Div(style=CARD, children=[
-                    dcc.Graph(id="keywords-chart", config={"displayModeBar": False}),
+                dbc.Row([
+                    dbc.Col(
+                        html.Div(className="rm-card", style=CARD, children=[
+                            html.Div("Palabras más frecuentes", style={
+                                "fontFamily": FONT_MONO, "fontSize": "0.62rem",
+                                "color": COLORS["muted"], "marginBottom": "8px",
+                                "textTransform": "uppercase", "letterSpacing": "0.1em",
+                            }),
+                            dcc.Graph(id="keywords-chart", config={"displayModeBar": False}),
+                        ]), width=7
+                    ),
+                    dbc.Col(
+                        html.Div(className="rm-card", style=CARD, children=[
+                            html.Div("Frases más repetidas (bigramas)", style={
+                                "fontFamily": FONT_MONO, "fontSize": "0.62rem",
+                                "color": COLORS["muted"], "marginBottom": "8px",
+                                "textTransform": "uppercase", "letterSpacing": "0.1em",
+                            }),
+                            dcc.Graph(id="bigrams-chart", config={"displayModeBar": False}),
+                        ]), width=5
+                    ),
                 ]),
             ]),
 
@@ -421,13 +586,13 @@ app.layout = html.Div(
                 sec_label("05 — Los protagonistas"),
                 sec_q("¿Quién genera elogios y quién genera polémica?"),
                 sec_a(
-                    "Para cada jugador o tema calculamos el compound score promedio de todos los textos "
-                    "donde aparece. Positivo = aparece en contextos de elogio. "
-                    "Negativo = aparece en contextos de crítica o preocupación."
+                    "Para cada jugador o tema calculamos el índice de ánimo promedio de todos los textos "
+                    "donde aparece. Por encima de cero = aparece en contextos de elogio. "
+                    "Por debajo = aparece en contextos de crítica o preocupación."
                 ),
                 dbc.Row([
                     dbc.Col(
-                        html.Div(style=CARD, children=[
+                        html.Div(className="rm-card", style=CARD, children=[
                             dcc.Graph(id="aspect-sentiment-chart", config={"displayModeBar": False}),
                         ]), width=7
                     ),
@@ -459,15 +624,10 @@ app.layout = html.Div(
                     }),
                     dbc.RadioItems(
                         id="drilldown-aspect",
+                        className="rm-pills",
                         options=[{"label": f" {v}", "value": k} for k, v in LABELS.items()],
                         value="bellingham",
                         inline=True,
-                        inputStyle={"marginRight": "4px"},
-                        labelStyle={
-                            "marginRight": "14px", "color": COLORS["muted"],
-                            "fontSize": "0.78rem", "fontFamily": FONT_MONO,
-                            "cursor": "pointer",
-                        },
                     ),
                 ]),
 
@@ -477,7 +637,7 @@ app.layout = html.Div(
                 # Gráficas de palabras coocurrentes
                 dbc.Row([
                     dbc.Col(
-                        html.Div(style=CARD, children=[
+                        html.Div(className="rm-card", style=CARD, children=[
                             html.Div("Palabras en contextos positivos", style={
                                 "fontFamily": FONT_MONO, "fontSize": "0.6rem",
                                 "color": COLORS["positive"], "textTransform": "uppercase",
@@ -487,7 +647,7 @@ app.layout = html.Div(
                         ]), width=4
                     ),
                     dbc.Col(
-                        html.Div(style=CARD, children=[
+                        html.Div(className="rm-card", style=CARD, children=[
                             html.Div("Palabras en contextos negativos", style={
                                 "fontFamily": FONT_MONO, "fontSize": "0.6rem",
                                 "color": COLORS["negative"], "textTransform": "uppercase",
@@ -555,7 +715,7 @@ def cb_verdict(_):
         verdict = "El clima en torno al Real Madrid es marcadamente optimista."
         vcolor  = COLORS["positive"]
         detail  = (
-            f"Con un compound score de {compound:+.3f}, la cobertura y la conversación en redes están dominadas "
+            f"Con un índice de ánimo de {compound:+.3f}, la cobertura y la conversación en redes están dominadas "
             f"por contenido positivo. El {pos_pct}% de las {total:,} menciones analizadas expresa apoyo, elogio "
             f"o expectativa favorable hacia el club, los jugadores o la gestión."
         )
@@ -563,7 +723,7 @@ def cb_verdict(_):
         verdict = "El sentimiento es positivo, aunque con matices críticos relevantes."
         vcolor  = COLORS["positive"]
         detail  = (
-            f"El compound score de {compound:+.3f} indica una tendencia positiva moderada. "
+            f"El índice de ánimo de {compound:+.3f} indica una tendencia positiva moderada. "
             f"El {pos_pct}% de las menciones es favorable, pero el {neg_pct}% de contenido negativo "
             f"sugiere temas específicos que generan controversia dentro del optimismo general."
         )
@@ -571,7 +731,7 @@ def cb_verdict(_):
         verdict = "La conversación está dividida — ni optimismo ni pesimismo predomina."
         vcolor  = COLORS["neutral"]
         detail  = (
-            f"Con un compound score de {compound:+.3f}, el debate público sobre Real Madrid está "
+            f"Con un índice de ánimo de {compound:+.3f}, el debate público sobre Real Madrid está "
             f"equilibrado entre voces positivas ({pos_pct}%) y negativas ({neg_pct}%). "
             f"Esto puede indicar un momento de transición o temas muy polarizados coexistiendo."
         )
@@ -579,7 +739,7 @@ def cb_verdict(_):
         verdict = "El tono predominante es crítico — más preocupación que celebración."
         vcolor  = COLORS["negative"]
         detail  = (
-            f"El compound score de {compound:+.3f} refleja que el {neg_pct}% de las menciones "
+            f"El índice de ánimo de {compound:+.3f} refleja que el {neg_pct}% de las menciones "
             f"expresa crítica o decepción. Solo el {pos_pct}% es favorable. "
             f"Los temas negativos están dominando la narrativa pública en este período."
         )
@@ -597,12 +757,40 @@ def cb_verdict(_):
             html.Div(style={"width": "1px", "background": COLORS["border"], "margin": "0 20px"}),
             stat(f"{dom_pct}%", "sentimiento dominante", color=vcolor, note=dominant.capitalize()),
             html.Div(style={"width": "1px", "background": COLORS["border"], "margin": "0 20px"}),
-            stat(f"{compound:+.3f}", "compound score global", color=vcolor),
+            stat(f"{compound:+.3f}", "índice de ánimo global", color=vcolor),
             html.Div(style={"width": "1px", "background": COLORS["border"], "margin": "0 20px"}),
             stat(f"{reddit_n:,}", "posts Reddit", color=COLORS["reddit"]),
             html.Div(style={"width": "1px", "background": COLORS["border"], "margin": "0 20px"}),
             stat(f"{scraping_n:,}", "artículos prensa", color=COLORS["scraping"]),
         ]),
+
+        # ── Medidor visual del ánimo (−1 … +1) ────────────────────────────────
+        html.Div(style={"maxWidth": "760px", "margin": "4px 0 18px"}, children=[
+            html.Div(style={
+                "position": "relative", "height": "10px", "borderRadius": "999px",
+                "background": "linear-gradient(90deg, #a8322d 0%, #d8cdbb 50%, #2f7d52 100%)",
+                "border": f"1px solid {COLORS['border']}",
+            }, children=[
+                # marcador en la posición del compound global
+                html.Div(style={
+                    "position": "absolute",
+                    "left": f"{(compound + 1) / 2 * 100:.1f}%",
+                    "top": "50%", "transform": "translate(-50%, -50%)",
+                    "width": "16px", "height": "16px", "borderRadius": "50%",
+                    "background": COLORS["bg"], "border": f"3px solid {vcolor}",
+                    "boxShadow": "0 1px 4px rgba(40,33,22,0.25)",
+                }),
+            ]),
+            html.Div(style={
+                "display": "flex", "justifyContent": "space-between", "marginTop": "5px",
+                "fontFamily": FONT_MONO, "fontSize": "0.58rem", "color": COLORS["dim"],
+            }, children=[
+                html.Span("−1 · muy crítico"),
+                html.Span("0 · dividido"),
+                html.Span("muy positivo · +1"),
+            ]),
+        ]),
+
         html.P(detail, style={
             "fontFamily": FONT_BODY, "fontSize": "0.88rem",
             "color": COLORS["muted"], "lineHeight": "1.7",
@@ -658,7 +846,7 @@ def cb_trends(granularity, _):
 
     fig_t.update_layout(**CHART_LAYOUT)
     fig_t.update_layout(
-        title=dict(text=f"Compound score promedio ({xlabel.lower()})",
+        title=dict(text=f"Índice de ánimo promedio ({xlabel.lower()})",
                    font=dict(size=11, color=COLORS["muted"]), x=0),
         height=260, yaxis_range=[-1, 1],
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
@@ -845,6 +1033,36 @@ def cb_keywords(_):
 
 
 @app.callback(
+    Output("bigrams-chart", "figure"),
+    Input("interval", "n_intervals"),
+)
+def cb_bigrams(_):
+    """Bigramas (n-grams) más frecuentes — Agg3b del Gold DAG."""
+    df_bg = load_latest("top_bigrams")
+    fig   = go.Figure()
+
+    if not df_bg.empty and "bigram" in df_bg.columns and "frequency" in df_bg.columns:
+        top = df_bg.head(15).sort_values("frequency")
+        fig.add_trace(go.Bar(
+            x=top["frequency"], y=top["bigram"],
+            orientation="h",
+            marker_color=COLORS["scraping"], opacity=0.88,
+            text=top["frequency"].astype(str),
+            textposition="outside",
+            textfont=dict(size=9, color=COLORS["dim"], family=FONT_MONO),
+            hovertemplate="<b>%{y}</b><br>Aparece %{x} veces<extra></extra>",
+        ))
+
+    fig.update_layout(**CHART_LAYOUT)
+    fig.update_layout(
+        height=500, showlegend=False,
+        xaxis_title="Veces que aparece la pareja de palabras",
+        margin=dict(l=40, r=60, t=20, b=40),
+    )
+    return fig
+
+
+@app.callback(
     Output("aspect-sentiment-chart", "figure"),
     Output("aspect-insight-box",     "children"),
     Input("interval", "n_intervals"),
@@ -897,7 +1115,7 @@ def cb_aspects(_):
         fig.update_layout(**CHART_LAYOUT)
         fig.update_layout(
             height=380, showlegend=False,
-            xaxis_title="← más crítico  |  compound score  |  más positivo →",
+            xaxis_title="← más crítico       índice de ánimo       más positivo →",
             xaxis_range=[-0.8, 0.85],
             margin=dict(l=40, r=70, t=20, b=48),
         )
@@ -998,7 +1216,7 @@ def cb_drilldown(aspect, _):
                         "fontFamily": FONT_HEAD, "fontSize": "1.6rem",
                         "fontWeight": "700", "color": vcolor, "lineHeight": "1",
                     }),
-                    html.Div("compound score", style={
+                    html.Div("índice de ánimo", style={
                         "fontFamily": FONT_MONO, "fontSize": "0.58rem",
                         "color": COLORS["dim"], "textTransform": "uppercase",
                         "letterSpacing": "0.1em", "marginTop": "4px",
