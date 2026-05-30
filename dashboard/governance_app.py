@@ -1,5 +1,5 @@
 """
-Real Madrid Pulse — Storytelling Dashboard
+Real Madrid Pulse — Governance Dashboard
 Workshop 4 — Plotly Dash
 Puerto: localhost:8052
 
