@@ -88,7 +88,7 @@ BASE_LAYOUT = dict(
     paper_bgcolor=COLORS["card_bg"],
     plot_bgcolor=COLORS["card_bg"],
     font=dict(color=COLORS["text"], family="Arial, Helvetica, sans-serif"),
-    margin=dict(l=50, r=24, t=84, b=56),
+    margin=dict(l=50, r=24, t=100, b=70),
     legend=dict(
         bgcolor="rgba(0,0,0,0)",
         bordercolor=COLORS["border"],
@@ -416,7 +416,7 @@ def build_null_chart(df: pd.DataFrame, source_filter: str) -> go.Figure:
         ),
         xaxis_title="Null rate (%)",
         yaxis_title="Field",
-        height=390,
+        height=480,
         showlegend=True,
         annotations=[
             dict(
@@ -443,12 +443,12 @@ def build_volume_chart(df: pd.DataFrame, source_filter: str, granularity: str) -
             title=dict(text="Volume of Records by Period and Source", x=0, font=dict(size=16)),
             xaxis_title="Period",
             yaxis_title="Number of records",
-            height=410,
+            height=480,
             annotations=[
                 dict(
                     text=f"Source: latest Gold base parquet · Scope: {source_scope_label(source_filter)}",
                     x=0,
-                    y=-0.23,
+                    y=-0.18,
                     xref="paper",
                     yref="paper",
                     showarrow=False,
@@ -516,7 +516,7 @@ def build_volume_chart(df: pd.DataFrame, source_filter: str, granularity: str) -
             dict(
                 text=f"Source: latest Gold base parquet · Scope: {source_scope_label(source_filter)}",
                 x=0,
-                y=-0.23,
+                y=-0.18,
                 xref="paper",
                 yref="paper",
                 showarrow=False,
@@ -577,13 +577,13 @@ def build_outlier_chart(df: pd.DataFrame, source_filter: str) -> go.Figure:
         title=dict(text="Outlier Rate by Numeric Field", x=0, font=dict(size=16)),
         xaxis_title="Numeric field",
         yaxis_title="Outlier rate (%)",
-        height=360,
+        height=440,
         showlegend=True,
         annotations=[
             dict(
                 text=f"Source: latest Gold base parquet · Scope: {source_scope_label(source_filter)}",
                 x=0,
-                y=-0.28,
+                y=-0.22,
                 xref="paper",
                 yref="paper",
                 showarrow=False,
@@ -731,10 +731,10 @@ app.layout = html.Div(
         ),
 
         html.Div(
-            style={"padding": "22px 40px 28px"},
+            style={"padding": "28px 40px 36px"},
             children=[
                 dbc.Row(
-                    className="g-3 mb-3",
+                    className="g-4 mb-4",
                     children=[
                         dbc.Col(
                             html.Div(
@@ -805,7 +805,7 @@ app.layout = html.Div(
                 dbc.Row(id="kpi-row", className="g-3 mb-2"),
 
                 dbc.Row(
-                    className="g-3 mb-3",
+                    className="g-4 mb-4",
                     children=[
                         dbc.Col(
                             html.Div(
@@ -816,7 +816,7 @@ app.layout = html.Div(
                                         "Ordered from highest to lowest severity. Green means clean, amber means watch, and red means urgent.",
                                         style={"fontSize": "0.8rem", "color": COLORS["text_muted"], "marginBottom": "10px"},
                                     ),
-                                    dcc.Graph(id="null-rate-chart", config=CHART_CONFIG),
+                                    dcc.Graph(id="null-rate-chart", config=CHART_CONFIG, style={"height": "480px"}),
                                 ],
                             ),
                             width=12,
@@ -825,7 +825,7 @@ app.layout = html.Div(
                 ),
 
                 dbc.Row(
-                    className="g-3 mb-3",
+                    className="g-4 mb-4",
                     children=[
                         dbc.Col(
                             html.Div(
@@ -836,7 +836,7 @@ app.layout = html.Div(
                                         "Bars show records by source; the line shows total volume for the selected period.",
                                         style={"fontSize": "0.8rem", "color": COLORS["text_muted"], "marginBottom": "10px"},
                                     ),
-                                    dcc.Graph(id="volume-chart", config=CHART_CONFIG),
+                                    dcc.Graph(id="volume-chart", config=CHART_CONFIG, style={"height": "480px"}),
                                 ],
                             ),
                             md=7,
@@ -851,7 +851,7 @@ app.layout = html.Div(
                                         "Outliers are measured with the IQR rule over the latest filtered scope.",
                                         style={"fontSize": "0.8rem", "color": COLORS["text_muted"], "marginBottom": "10px"},
                                     ),
-                                    dcc.Graph(id="outlier-chart", config=CHART_CONFIG),
+                                    dcc.Graph(id="outlier-chart", config=CHART_CONFIG, style={"height": "480px"}),
                                 ],
                             ),
                             md=5,
