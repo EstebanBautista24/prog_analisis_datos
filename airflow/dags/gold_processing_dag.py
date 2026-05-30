@@ -407,6 +407,8 @@ def gold_processing_dag():
             if not subset_len.empty:
                 text_len_stats[f"text_length_mean_{src}"]   = round(float(subset_len.mean()),   2)
                 text_len_stats[f"text_length_median_{src}"] = round(float(subset_len.median()), 2)
+                text_len_stats[f"text_length_min_{src}"]    = int(subset_len.min())
+                text_len_stats[f"text_length_max_{src}"]    = int(subset_len.max())
 
         sent_dist = df["sentiment_label"].value_counts(normalize=True).mul(100).round(2).to_dict() if "sentiment_label" in df.columns else {}
         sent_dist_named = {f"sentiment_pct_{k}": v for k, v in sent_dist.items()}
@@ -463,6 +465,70 @@ def gold_processing_dag():
         else:
             schema_compliance_rate = None
 
+        # ── Duplicate rate (consolidación Gold vs total en Silver) ────────────
+        # El Gold deduplica por `url` al unir todos los Parquet de Silver. Para
+        # reportar la tasa de duplicados comparamos el total de filas en Silver
+        # (leído de la metadata del Parquet, sin cargar los datos) contra el
+        # total tras la deduplicación global.
+        duplicate_stats = {}
+        try:
+            import glob as _glob
+            import pyarrow.parquet as _pq
+            silver_files = [
+                f for f in _glob.glob(os.path.join(SILVER_PATH, "*.parquet"))
+                if "outlier_reports" not in f
+            ]
+            total_silver = sum(_pq.read_metadata(f).num_rows for f in silver_files)
+            if total_silver > 0:
+                dups = max(total_silver - total, 0)
+                duplicate_stats = {
+                    "records_before_dedup": int(total_silver),
+                    "records_after_dedup":  int(total),
+                    "duplicates_removed":   int(dups),
+                    "duplicate_rate":       round(dups / total_silver * 100, 2),
+                }
+        except Exception as e:
+            print(f"⚠️  No se pudo calcular duplicate_rate: {e}")
+
+        # ── Volumen por periodo / cobertura temporal ──────────────────────────
+        # Cubre el KPI "volume per time period and cumulative" del WS3.
+        volume_time_stats = {}
+        if "published_at" in df.columns:
+            dts = df["published_at"].dropna()
+            if len(dts) > 0:
+                weeks = df["published_at"].dt.to_period("W").nunique()
+                days  = df["published_at"].dt.date.nunique()
+                volume_time_stats = {
+                    "first_record_date":    str(dts.min().date()),
+                    "last_record_date":     str(dts.max().date()),
+                    "span_days":            int((dts.max() - dts.min()).days),
+                    "weeks_covered":        int(weeks),
+                    "days_covered":         int(days),
+                    "avg_records_per_week": round(total / weeks, 2) if weeks else total,
+                    "avg_records_per_day":  round(total / days, 2)  if days  else total,
+                }
+
+        # ── Distribución de idioma (heurística por densidad de stopwords ES) ──
+        # El corpus es mayoritariamente inglés (Reddit + sitio en inglés). Esta
+        # heurística marca registros con alta densidad de palabras funcionales
+        # en español como "likely_spanish". Es aproximada, no un detector formal.
+        language_stats = {}
+        if "body_text" in df.columns:
+            ES_HINTS = [" el ", " la ", " los ", " las ", " de ", " que ", " en ",
+                        " un ", " una ", " por ", " con ", " del ", " para "]
+
+            def _is_es(t):
+                if not isinstance(t, str) or len(t) < 40:
+                    return False
+                tl = " " + t.lower() + " "
+                return sum(tl.count(h) for h in ES_HINTS) >= 4
+
+            n_es = int(df["body_text"].apply(_is_es).sum())
+            language_stats = {
+                "pct_likely_spanish": round(n_es / total * 100, 2),
+                "pct_likely_english": round((total - n_es) / total * 100, 2),
+            }
+
         governance_row = {
             "pipeline_run_ts":        run_ts,
             "total_records":          total,
@@ -470,6 +536,9 @@ def gold_processing_dag():
             "records_scraping":       by_source.get("scraping", 0),
             "body_text_missing_rate": body_missing_rate,
             "schema_compliance_rate": schema_compliance_rate,
+            **duplicate_stats,
+            **volume_time_stats,
+            **language_stats,
             **null_rates,
             **token_stats,
             **text_len_stats,

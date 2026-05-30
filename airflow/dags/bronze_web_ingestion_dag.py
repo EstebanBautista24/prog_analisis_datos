@@ -32,7 +32,7 @@ def football_universal_dag():
     def get_news_links():
         headers = {"User-Agent": "Mozilla/5.0"}
         links = []
-        max_pages = 10  
+        max_pages = 1 
 
         for page in range(1, max_pages + 1):
 
