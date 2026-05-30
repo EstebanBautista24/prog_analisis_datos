@@ -76,7 +76,7 @@ services:
     entrypoint: >
       bash -c "airflow db upgrade &&
       airflow scheduler"
-  dashboard:
+  storytelling-dashboard:
     build: .
     depends_on:
       - airflow-scheduler
@@ -86,6 +86,16 @@ services:
       - ./dashboard:/opt/dashboard
       - C:/Users/Esteban/Documents/Data_analysis/Project/datalake_gold:/opt/airflow/datalake_gold
     command: python /opt/dashboard/storytelling_app.py
+  governance-dashboard:
+    build: .
+    depends_on:
+      - airflow-scheduler
+    ports:
+      - "8052:8052"
+    volumes:
+      - ./dashboard:/opt/dashboard
+      - C:/Users/Esteban/Documents/Data_analysis/Project/datalake_gold:/opt/airflow/datalake_gold
+    command: python /opt/dashboard/governance_app.py
 volumes:
   pgdata:
   pgdata_silver: 
