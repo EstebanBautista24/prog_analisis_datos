@@ -512,15 +512,6 @@ def build_volume_chart(df: pd.DataFrame, source_filter: str, granularity: str) -
         title=dict(text="Volume of Records by Period and Source", x=0, font=dict(size=16)),
         barmode="group",
         height=410,
-        legend=dict(
-            bgcolor="rgba(0,0,0,0)",
-            bordercolor=COLORS["border"],
-            orientation="h",
-            yanchor="bottom",
-            y=1.02,
-            xanchor="right",
-            x=1,
-        ),
         annotations=[
             dict(
                 text=f"Source: latest Gold base parquet · Scope: {source_scope_label(source_filter)}",
@@ -924,4 +915,4 @@ def refresh_dashboard(source_filter: str, period_filter: str, _refresh_clicks, _
 
 
 if __name__ == "__main__":
-    app.run_server(host="0.0.0.0", port=8052, debug=True)
+    app.run(host="0.0.0.0", port=8052, debug=True)
